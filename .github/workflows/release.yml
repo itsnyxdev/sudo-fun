@@ -56,7 +56,9 @@ jobs:
             -o "assets/models/pose_landmarker_lite.task"
 
           echo "Downloading yamnet.onnx from Hugging Face..."
-          curl -fsSL "https://huggingface.co/seanghay/yamnet-onnx/resolve/main/yamnet.onnx" \
+          curl -fsSL --retry 3 "https://huggingface.co/andrelgomes/yamnet-onnx/resolve/main/yamnet.onnx" \
+            -o "assets/models/yamnet.onnx" || \
+          curl -fsSL --retry 3 "https://huggingface.co/zeropointnine/yamnet-onnx/resolve/main/yamnet.onnx" \
             -o "assets/models/yamnet.onnx"
 
           echo "Downloading yamnet_class_map.csv from TensorFlow GitHub..."
