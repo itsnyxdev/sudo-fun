@@ -52,14 +52,36 @@ If the user fails **3 consecutive times** for that command:
 
 ### 1. Requirements
 - Linux with Python 3.10+ (Python 3.11/3.12 recommended)
-- `uv` or `pip`
 - Webcam and microphone (optional; gracefully falls back to keyboard reaction challenges if absent)
 - Audio system: PipeWire (`pw-play`), PulseAudio (`paplay`), or ALSA
 
-### 2. Setup with `uv`
+### 2. Automatic Install (Recommended)
+
+Run the automated installer script, which detects your Linux distribution, installs required system packages, sets up an isolated virtual environment, and configures Bash, Zsh, or Fish:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/itsnyxdev/sudo-fun/main/install.sh | bash
+```
+
+Or clone and run locally:
+
+```bash
+git clone https://github.com/itsnyxdev/sudo-fun.git
+cd sudo-fun
+./install.sh
+```
+
+#### Installer Flags
+- `--alias`: Automatically configure `alias sudo="sudo-fun"` in your shell.
+- `--no-alias`: Skip shell alias configuration.
+- `--skip-deps`: Skip system package manager package installation.
+- `--dir <path>`: Custom installation directory (default: `~/.local/share/sudo-fun`).
+- `--bin-dir <path>`: Custom launcher path (default: `~/.local/bin`).
+
+### 3. Manual Setup with `uv`
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/sudo-fun.git
+git clone https://github.com/itsnyxdev/sudo-fun.git
 cd sudo-fun
 
 # Create virtual environment and install
