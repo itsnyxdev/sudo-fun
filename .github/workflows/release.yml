@@ -1,0 +1,82 @@
+name: Release Packaging
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach packaged source to'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  package-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine tag name
+        id: tag_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          elif [ -n "${{ github.event.release.tag_name }}" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ github.ref_name }}" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v1.0.0"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building package for tag: ${TAG}"
+
+      - name: Download release audio assets
+        run: |
+          mkdir -p assets
+          echo "Downloading failed.mp3..."
+          curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.mp3" -o "assets/failed.mp3"
+          echo "Downloading failed.wav..."
+          curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.wav" -o "assets/failed.wav"
+
+      - name: Verify all required models and assets
+        run: |
+          # Verify audio assets
+          test -s assets/failed.mp3 || { echo "failed.mp3 missing or empty"; exit 1; }
+          test -s assets/failed.wav || { echo "failed.wav missing or empty"; exit 1; }
+
+          # Verify models directory and files
+          test -s assets/models/face_landmarker.task || { echo "face_landmarker.task missing"; exit 1; }
+          test -s assets/models/pose_landmarker_lite.task || { echo "pose_landmarker_lite.task missing"; exit 1; }
+          test -s assets/models/yamnet.onnx || { echo "yamnet.onnx missing"; exit 1; }
+          test -s assets/models/yamnet_class_map.csv || { echo "yamnet_class_map.csv missing"; exit 1; }
+          test -d assets/models/vosk-model-small-en-us-0.15 || { echo "vosk model missing"; exit 1; }
+          echo "All external assets and models verified successfully."
+
+      - name: Create release source archive
+        run: |
+          TAG="${{ steps.tag_info.outputs.tag }}"
+          PKG_NAME="sudo-fun-${TAG}"
+
+          # Create clean staging directory
+          mkdir -p "/tmp/${PKG_NAME}"
+          rsync -av --exclude='.git' --exclude='.github' --exclude='.venv' --exclude='__pycache__' --exclude='.pytest_cache' ./ "/tmp/${PKG_NAME}/"
+
+          # Package tar.gz and zip
+          tar -czf "${PKG_NAME}.tar.gz" -C /tmp "${PKG_NAME}"
+          (cd /tmp && zip -r -q "${GITHUB_WORKSPACE}/${PKG_NAME}.zip" "${PKG_NAME}")
+
+          ls -lh "${PKG_NAME}.tar.gz" "${PKG_NAME}.zip"
+
+      - name: Attach source archives to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag_info.outputs.tag }}"
+          PKG_NAME="sudo-fun-${TAG}"
+          echo "Uploading ${PKG_NAME}.tar.gz and ${PKG_NAME}.zip to release ${TAG}..."
+          gh release upload "${TAG}" "${PKG_NAME}.tar.gz" "${PKG_NAME}.zip" --clobber

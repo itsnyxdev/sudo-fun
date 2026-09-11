@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sudo-fun"
-version = "0.1.0"
+version = "1.0.0"
 description = "A modular Linux CLI wrapper around sudo with interactive challenge gates."
 authors = [{ name = "sudo-fun team" }]
+license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

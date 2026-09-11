@@ -301,12 +301,8 @@ fetch_source_code() {
                 rm -rf "$INSTALL_DIR/.venv" "$INSTALL_DIR/.pytest_cache"
             fi
         fi
+        ensure_audio_assets
         return 0
-    fi
-
-    # Remote installation: check GitHub Releases API or branch
-    if ! command -v git >/dev/null 2>&1; then
-        die "git is required to clone sudo-fun. Please install git."
     fi
 
     local target_tag="$BRANCH"
@@ -316,6 +312,22 @@ fetch_source_code() {
         local release_json=""
         if command -v curl >/dev/null 2>&1; then
             release_json="$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)"
+        fi
+
+        # Try to download prepared release package if available
+        local asset_url=""
+        if [ -n "$release_json" ]; then
+            asset_url="$(echo "$release_json" | grep -o '"browser_download_url": *"[^"]*sudo-fun-[^"]*\.tar\.gz"' | head -n 1 | cut -d '"' -f 4 || true)"
+        fi
+
+        if [ -n "$asset_url" ] && command -v tar >/dev/null 2>&1; then
+            info "Downloading release package from $asset_url..."
+            rm -rf "${INSTALL_DIR:?}"/*
+            if { curl -sSL "$asset_url" | tar -xz --strip-components=1 -C "$INSTALL_DIR" 2>/dev/null || curl -sSL "$asset_url" | tar -xz -C "$INSTALL_DIR" 2>/dev/null; } && [ -f "$INSTALL_DIR/pyproject.toml" ]; then
+                ensure_audio_assets
+                success "Source code prepared at $INSTALL_DIR"
+                return 0
+            fi
         fi
 
         # Parse tag_name if present
@@ -333,6 +345,11 @@ fetch_source_code() {
         fi
     fi
 
+    # Fallback to git clone if release asset not used
+    if ! command -v git >/dev/null 2>&1; then
+        die "git is required to clone sudo-fun. Please install git."
+    fi
+
     info "Cloning ${REPO} (branch/tag: ${target_tag}) into ${INSTALL_DIR}..."
 
     if [ -d "$INSTALL_DIR/.git" ]; then
@@ -344,7 +361,22 @@ fetch_source_code() {
         git clone --depth 1 --branch "$target_tag" "https://github.com/${REPO}.git" "$INSTALL_DIR"
     fi
 
+    ensure_audio_assets
     success "Source code prepared at $INSTALL_DIR"
+}
+
+# Ensure audio assets exist in INSTALL_DIR/assets
+ensure_audio_assets() {
+    local assets_dir="$INSTALL_DIR/assets"
+    mkdir -p "$assets_dir"
+    if [ ! -s "$assets_dir/failed.mp3" ]; then
+        info "Downloading failed.mp3 asset..."
+        curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.mp3" -o "$assets_dir/failed.mp3" 2>/dev/null || true
+    fi
+    if [ ! -s "$assets_dir/failed.wav" ]; then
+        info "Downloading failed.wav asset..."
+        curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.wav" -o "$assets_dir/failed.wav" 2>/dev/null || true
+    fi
 }
 
 # Create Python venv and install sudo-fun

@@ -5,6 +5,7 @@
 [![Tests](https://img.shields.io/badge/tests-23%20passed-brightgreen.svg)](#testing)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](#requirements)
 [![Linux](https://img.shields.io/badge/platform-Linux%20(PipeWire%20%7C%20Pulse%20%7C%20ALSA)-orange.svg)](#features)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
@@ -90,7 +91,7 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-### 3. Basic Usage
+### 4. Basic Usage
 ```bash
 # Execute command through sudo-fun
 sudo-fun whoami
@@ -151,3 +152,9 @@ sudo-fun/
 │       └── audio_player/       # Detached background failed.mp3 daemon & spawner
 └── tests/                      # Unit & integration test suites
 ```
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
