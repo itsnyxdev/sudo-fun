@@ -5,9 +5,12 @@ from __future__ import annotations
 import math
 from pathlib import Path
 from typing import List, Optional, Tuple
+
 import cv2
 import mediapipe as mp
 import numpy as np
+
+from sudo_fun.perception.model_utils import get_model_path
 
 LEFT_EYE_INDICES = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE_INDICES = [362, 385, 387, 263, 373, 380]
@@ -28,17 +31,6 @@ def calculate_ear(eye_points: List[Tuple[float, float]]) -> float:
     return (d_v1 + d_v2) / (2.0 * d_h)
 
 
-def _get_model_path() -> str:
-    candidates = [
-        Path(__file__).resolve().parent.parent.parent.parent / "assets" / "models" / "face_landmarker.task",
-        Path.home() / ".local" / "share" / "sudo-fun" / "models" / "face_landmarker.task",
-    ]
-    for c in candidates:
-        if c.is_file():
-            return str(c)
-    return str(candidates[0])
-
-
 class FaceDetector:
     """MediaPipe FaceLandmarker for real-time blink tracking."""
 
@@ -47,14 +39,14 @@ class FaceDetector:
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
     ):
-        model_path = _get_model_path()
+        model_path = get_model_path("face_landmarker.task")
         BaseOptions = mp.tasks.BaseOptions
         FaceLandmarker = mp.tasks.vision.FaceLandmarker
         FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
         VisionRunningMode = mp.tasks.vision.RunningMode
 
         options = FaceLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=model_path),
+            base_options=BaseOptions(model_asset_path=str(model_path)),
             running_mode=VisionRunningMode.IMAGE,
             min_face_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
