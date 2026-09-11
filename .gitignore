@@ -44,6 +44,9 @@ assets/failed.wav
 *.mp3
 *.wav
 
+# ML models (downloaded by CI release workflow)
+assets/models/
+
 # System / IDE
 .DS_Store
 .vscode/

@@ -130,9 +130,9 @@ Run the full pytest suite (23 unit and integration tests):
 ```
 sudo-fun/
 ├── assets/
-│   ├── failed.mp3              # Generated comical failure audio
-│   ├── failed.wav              # WAV source
-│   └── models/                 # Lightweight offline models
+│   ├── failed.mp3              # Failure audio (downloaded at install)
+│   ├── failed.wav              # WAV version (downloaded at install)
+│   └── models/                 # Offline ML models (downloaded at install)
 │       ├── face_landmarker.task
 │       ├── pose_landmarker_lite.task
 │       ├── yamnet.onnx

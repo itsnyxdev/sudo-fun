@@ -35,38 +35,71 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Building package for tag: ${TAG}"
 
-      - name: Download release audio assets
+      - name: Download audio assets
         run: |
           mkdir -p assets
           echo "Downloading failed.mp3..."
-          curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.mp3" -o "assets/failed.mp3"
+          curl -fsSL "http://sudo-fun.imnyx.dev/assets/failed.mp3" -o "assets/failed.mp3"
           echo "Downloading failed.wav..."
-          curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.wav" -o "assets/failed.wav"
+          curl -fsSL "http://sudo-fun.imnyx.dev/assets/failed.wav" -o "assets/failed.wav"
 
-      - name: Verify all required models and assets
+      - name: Download ML models
         run: |
-          # Verify audio assets
-          test -s assets/failed.mp3 || { echo "failed.mp3 missing or empty"; exit 1; }
-          test -s assets/failed.wav || { echo "failed.wav missing or empty"; exit 1; }
+          mkdir -p assets/models
 
-          # Verify models directory and files
-          test -s assets/models/face_landmarker.task || { echo "face_landmarker.task missing"; exit 1; }
-          test -s assets/models/pose_landmarker_lite.task || { echo "pose_landmarker_lite.task missing"; exit 1; }
-          test -s assets/models/yamnet.onnx || { echo "yamnet.onnx missing"; exit 1; }
-          test -s assets/models/yamnet_class_map.csv || { echo "yamnet_class_map.csv missing"; exit 1; }
-          test -d assets/models/vosk-model-small-en-us-0.15 || { echo "vosk model missing"; exit 1; }
-          echo "All external assets and models verified successfully."
+          echo "Downloading face_landmarker.task from Google MediaPipe..."
+          curl -fsSL "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task" \
+            -o "assets/models/face_landmarker.task"
+
+          echo "Downloading pose_landmarker_lite.task from Google MediaPipe..."
+          curl -fsSL "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task" \
+            -o "assets/models/pose_landmarker_lite.task"
+
+          echo "Downloading yamnet.onnx from Hugging Face..."
+          curl -fsSL "https://huggingface.co/seanghay/yamnet-onnx/resolve/main/yamnet.onnx" \
+            -o "assets/models/yamnet.onnx"
+
+          echo "Downloading yamnet_class_map.csv from TensorFlow GitHub..."
+          curl -fsSL "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv" \
+            -o "assets/models/yamnet_class_map.csv"
+
+          echo "Downloading vosk-model-small-en-us-0.15 from Alpha Cephei..."
+          curl -fsSL "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" \
+            -o "/tmp/vosk-model.zip"
+          unzip -q "/tmp/vosk-model.zip" -d "assets/models/"
+          rm "/tmp/vosk-model.zip"
+
+      - name: Verify all downloads
+        run: |
+          echo "Verifying audio assets..."
+          test -s assets/failed.mp3 || { echo "FAIL: failed.mp3 missing or empty"; exit 1; }
+          test -s assets/failed.wav || { echo "FAIL: failed.wav missing or empty"; exit 1; }
+
+          echo "Verifying ML models..."
+          test -s assets/models/face_landmarker.task || { echo "FAIL: face_landmarker.task missing"; exit 1; }
+          test -s assets/models/pose_landmarker_lite.task || { echo "FAIL: pose_landmarker_lite.task missing"; exit 1; }
+          test -s assets/models/yamnet.onnx || { echo "FAIL: yamnet.onnx missing"; exit 1; }
+          test -s assets/models/yamnet_class_map.csv || { echo "FAIL: yamnet_class_map.csv missing"; exit 1; }
+          test -d assets/models/vosk-model-small-en-us-0.15 || { echo "FAIL: vosk model dir missing"; exit 1; }
+          test -s assets/models/vosk-model-small-en-us-0.15/am/final.mdl || { echo "FAIL: vosk model incomplete"; exit 1; }
+
+          echo "All assets and models verified."
 
       - name: Create release source archive
         run: |
           TAG="${{ steps.tag_info.outputs.tag }}"
           PKG_NAME="sudo-fun-${TAG}"
 
-          # Create clean staging directory
           mkdir -p "/tmp/${PKG_NAME}"
-          rsync -av --exclude='.git' --exclude='.github' --exclude='.venv' --exclude='__pycache__' --exclude='.pytest_cache' ./ "/tmp/${PKG_NAME}/"
+          rsync -av \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='.pytest_cache' \
+            --exclude='*.egg-info' \
+            ./ "/tmp/${PKG_NAME}/"
 
-          # Package tar.gz and zip
           tar -czf "${PKG_NAME}.tar.gz" -C /tmp "${PKG_NAME}"
           (cd /tmp && zip -r -q "${GITHUB_WORKSPACE}/${PKG_NAME}.zip" "${PKG_NAME}")
 
