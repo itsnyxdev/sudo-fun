@@ -27,7 +27,7 @@ def get_model_path(filename: str) -> Path:
     install_root = Path(__file__).resolve().parents[3]
     candidates = [
         install_root / "assets" / "models" / filename,
-        Path.home() / ".local" / "share" / "sudo-fun" / "models" / filename,
+        Path.home() / ".local" / "share" / "sudo-fun" / "assets" / "models" / filename,
     ]
 
     for candidate in candidates:
