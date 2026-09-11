@@ -67,21 +67,35 @@ def test_cli_three_failures_triggers_lock(tmp_path: Path):
     # In non-interactive test mode, reaction challenge times out or fails
     cmd = [sys.executable, "-m", "sudo_fun.main", "--challenge", "timing.reaction", "whoami"]
 
-    # 1st failure
-    res1 = subprocess.run(cmd, capture_output=True, text=True, env=env, input="")
-    assert res1.returncode == 2
+    try:
+        # 1st failure
+        res1 = subprocess.run(cmd, capture_output=True, text=True, env=env, input="")
+        assert res1.returncode == 2
 
-    # 2nd failure
-    res2 = subprocess.run(cmd, capture_output=True, text=True, env=env, input="")
-    assert res2.returncode == 2
+        # 2nd failure
+        res2 = subprocess.run(cmd, capture_output=True, text=True, env=env, input="")
+        assert res2.returncode == 2
 
-    # 3rd failure triggers lock (exit code 3)
-    res3 = subprocess.run(cmd, capture_output=True, text=True, env=env, input="")
-    assert res3.returncode == 3
-    assert "COMMAND LOCKED" in res3.stdout
+        # 3rd failure triggers lock (exit code 3)
+        res3 = subprocess.run(cmd, capture_output=True, text=True, env=env, input="")
+        assert res3.returncode == 3
+        assert "COMMAND LOCKED" in res3.stdout
 
-    # Now verify that subsequent attempt is immediately rejected with code 1
-    res4 = subprocess.run(cmd, capture_output=True, text=True, env=env)
-    assert res4.returncode == 1
-    assert "COMMAND LOCKED" in res4.stdout
+        # Now verify that subsequent attempt is immediately rejected with code 1
+        res4 = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        assert res4.returncode == 1
+        assert "COMMAND LOCKED" in res4.stdout
+    finally:
+        if custom_db.is_file():
+            try:
+                lm = LockManager(custom_db)
+                # Resolve identity to get pid
+                import shutil
+                whoami_path = os.path.realpath(shutil.which("whoami") or "/usr/bin/whoami")
+                pid = lm.get_active_audio_pid(whoami_path)
+                if pid:
+                    import signal
+                    os.kill(pid, signal.SIGTERM)
+            except Exception:
+                pass
 
