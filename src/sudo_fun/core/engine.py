@@ -8,6 +8,7 @@ import termios
 import time
 import tty
 from typing import Optional
+import numpy as np
 
 from sudo_fun.challenges.base import (
     BaseChallenge,
@@ -100,6 +101,10 @@ class ChallengeEngine:
 
         start_time = time.time()
         last_tick = start_time
+        last_classifier_time = 0.0
+        cached_animal_detected = False
+        cached_detected_label = ""
+        cached_detected_score = 0.0
         timeout = self.challenge.timeout_seconds
         result = ChallengeResult(ChallengeState.RUNNING, "Starting...")
 
@@ -164,12 +169,26 @@ class ChallengeEngine:
                         new_audio = audio_svc.get_new_audio_samples()
                         speech_text = asr.process_audio(new_audio)
 
-                    # 1.0s sliding window for environmental audio classification
+                    # Throttled audio classification (~4 Hz) with RMS energy gating
                     if classifier and hasattr(self.challenge, "_animal"):
-                        audio_chunk = audio_svc.get_audio_window(1.0)
-                        animal_detected, detected_label, detected_score = classifier.is_animal_sound_detected(
-                            audio_chunk, self.challenge._animal
-                        )
+                        if now - last_classifier_time >= 0.25:
+                            audio_chunk = audio_svc.get_audio_window(1.0)
+                            rms = float(np.sqrt(np.mean(audio_chunk ** 2))) if len(audio_chunk) > 0 else 0.0
+                            if rms > 0.012:
+                                cached_animal_detected, cached_detected_label, cached_detected_score = (
+                                    classifier.is_animal_sound_detected(
+                                        audio_chunk, self.challenge._animal
+                                    )
+                                )
+                            else:
+                                cached_animal_detected = False
+                                cached_detected_label = "silence"
+                                cached_detected_score = 0.0
+                            last_classifier_time = now
+
+                        animal_detected = cached_animal_detected
+                        detected_label = cached_detected_label
+                        detected_score = cached_detected_score
 
                 # Build context
                 context = {

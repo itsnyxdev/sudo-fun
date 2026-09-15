@@ -207,8 +207,19 @@ class LockManager:
                 (pid, command_identity),
             )
 
-    def clear_lock(self, command_identity: str) -> None:
-        """Administratively clears a command lock and resets failure count."""
+    def clear_lock(self, command_identity: str, kill_audio: bool = True) -> Optional[int]:
+        """Administratively clears a command lock, kills audio daemon, and resets failures."""
+        killed_pid = None
+        if kill_audio:
+            pid = self.get_active_audio_pid(command_identity)
+            if pid:
+                try:
+                    import signal
+                    os.kill(pid, signal.SIGTERM)
+                    killed_pid = pid
+                except OSError:
+                    pass
+
         with self._get_connection() as conn:
             conn.execute(
                 """
@@ -218,6 +229,75 @@ class LockManager:
                 """,
                 (command_identity,),
             )
+        return killed_pid
+
+    def get_all_states(self) -> list[dict]:
+        """Returns the state records for all tracked commands."""
+        now = time.time()
+        states = []
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT command_identity, consecutive_fails, lock_until, active_audio_pid, last_attempt
+                FROM command_state
+                ORDER BY last_attempt DESC
+                """
+            )
+            for row in cursor.fetchall():
+                cmd_id, fails, lock_until, audio_pid, last_att = row
+                rem = None
+                if lock_until is not None:
+                    diff = float(lock_until) - now
+                    if diff > 0:
+                        rem = diff
+
+                # Verify if audio PID is still alive
+                alive_audio = None
+                if audio_pid and self._is_pid_alive(int(audio_pid)):
+                    alive_audio = int(audio_pid)
+
+                states.append({
+                    "command_identity": cmd_id,
+                    "consecutive_fails": fails,
+                    "lock_until": lock_until,
+                    "lock_remaining": rem,
+                    "active_audio_pid": alive_audio,
+                    "last_attempt": last_att,
+                })
+        return states
+
+    def kill_all_audio_daemons(self) -> list[int]:
+        """Terminates all active background audio player processes."""
+        import signal
+        killed = []
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT command_identity, active_audio_pid FROM command_state WHERE active_audio_pid IS NOT NULL"
+            )
+            rows = cursor.fetchall()
+            for cmd_id, pid_val in rows:
+                if pid_val:
+                    pid = int(pid_val)
+                    if self._is_pid_alive(pid):
+                        try:
+                            os.kill(pid, signal.SIGTERM)
+                            killed.append(pid)
+                        except OSError:
+                            pass
+            conn.execute("UPDATE command_state SET active_audio_pid = NULL")
+        return killed
+
+    def clear_all_locks(self) -> int:
+        """Clears locks and resets failure counts for all commands."""
+        self.kill_all_audio_daemons()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE command_state
+                SET lock_until = NULL, consecutive_fails = 0, active_audio_pid = NULL
+                """
+            )
+            return cursor.rowcount
 
     @staticmethod
     def _is_pid_alive(pid: int) -> bool:
@@ -227,5 +307,10 @@ class LockManager:
         try:
             os.kill(pid, 0)
             return True
-        except (ProcessLookupError, PermissionError):
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            # EPERM means process exists but owned by different UID
+            return True
+        except OSError:
             return False

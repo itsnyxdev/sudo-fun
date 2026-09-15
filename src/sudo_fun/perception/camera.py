@@ -9,16 +9,26 @@ import cv2
 import numpy as np
 
 
-def is_camera_available(device_index: int = 0) -> bool:
-    """Checks if a usable webcam is present and accessible."""
+_CAMERA_AVAILABLE_CACHE: Optional[bool] = None
+
+
+def is_camera_available(device_index: int = 0, cached: bool = True) -> bool:
+    """Checks if a usable webcam is present and accessible (cached by default)."""
+    global _CAMERA_AVAILABLE_CACHE
+    if cached and _CAMERA_AVAILABLE_CACHE is not None:
+        return _CAMERA_AVAILABLE_CACHE
+
     cap = cv2.VideoCapture(device_index, cv2.CAP_V4L2)
     if not cap.isOpened():
         cap = cv2.VideoCapture(device_index)
     if not cap.isOpened():
+        _CAMERA_AVAILABLE_CACHE = False
         return False
     ret, frame = cap.read()
     cap.release()
-    return bool(ret and frame is not None and frame.size > 0)
+    avail = bool(ret and frame is not None and frame.size > 0)
+    _CAMERA_AVAILABLE_CACHE = avail
+    return avail
 
 
 class CameraService:

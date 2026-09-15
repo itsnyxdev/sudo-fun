@@ -57,7 +57,9 @@ def parse_cli_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         default="normal",
         help="Challenge difficulty",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Do not invoke real sudo upon passing")
+    parser.add_argument("--status", action="store_true", help="Display lockout and failure status of all commands")
+    parser.add_argument("--unlock", type=str, default=None, metavar="CMD", help="Administratively unlock a command (or 'all')")
+    parser.add_argument("--kill-audio", action="store_true", help="Terminate active background failure audio processes")
 
     sudo_fun_flags = []
     target_cmd_args = []
@@ -65,10 +67,10 @@ def parse_cli_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     i = 0
     while i < len(argv):
         arg = argv[i]
-        if arg in ("--help", "-h", "--version", "-v", "--list-challenges", "--dry-run"):
+        if arg in ("--help", "-h", "--version", "-v", "--list-challenges", "--dry-run", "--status", "--kill-audio"):
             sudo_fun_flags.append(arg)
             i += 1
-        elif arg in ("--challenge", "--difficulty"):
+        elif arg in ("--challenge", "--difficulty", "--unlock"):
             if i + 1 < len(argv):
                 sudo_fun_flags.extend([arg, argv[i + 1]])
                 i += 2
@@ -95,10 +97,67 @@ def main() -> None:
         print("  --challenge <id>         Test or force a specific challenge")
         print("  --difficulty <lvl>       Challenge difficulty: easy, normal, hard")
         print("  --dry-run                Simulate without executing real sudo")
+        print("  --status                 Display lockout and failure status of all commands")
+        print("  --unlock <cmd|all>       Administratively unlock a command or all commands")
+        print("  --kill-audio             Terminate active background audio daemons")
         sys.exit(0)
 
     if opts.version:
         print(f"sudo-fun v{__version__}")
+        sys.exit(0)
+
+    lock_mgr = LockManager()
+
+    if opts.status:
+        from rich.console import Console
+        from rich.table import Table
+        console = Console()
+        states = lock_mgr.get_all_states()
+        if not states:
+            console.print("[green]No tracked commands or active locks found.[/green]")
+            sys.exit(0)
+
+        table = Table(title="sudo-fun Command Status & Lockouts", border_style="bright_blue")
+        table.add_column("Command Identity", style="cyan")
+        table.add_column("Failures", justify="center")
+        table.add_column("Status", justify="center")
+        table.add_column("Audio PID", justify="center")
+
+        for s in states:
+            rem = s["lock_remaining"]
+            if rem is not None and rem > 0:
+                m, sec = int(rem // 60), int(rem % 60)
+                status_str = f"[bold red]LOCKED ({m:02d}:{sec:02d})[/bold red]"
+            elif s["consecutive_fails"] > 0:
+                status_str = f"[yellow]{s['consecutive_fails']}/3 Fails[/yellow]"
+            else:
+                status_str = "[green]Unlocked[/green]"
+
+            audio_str = str(s["active_audio_pid"]) if s["active_audio_pid"] else "-"
+            table.add_row(s["command_identity"], str(s["consecutive_fails"]), status_str, audio_str)
+
+        console.print(table)
+        sys.exit(0)
+
+    if opts.unlock:
+        if opts.unlock.lower() in ("all", "*"):
+            count = lock_mgr.clear_all_locks()
+            print(f"[+] Cleared locks and reset failures for all {count} tracked command(s).")
+        else:
+            cid, _ = resolve_command_identity([opts.unlock])
+            killed = lock_mgr.clear_lock(cid, kill_audio=True)
+            if killed:
+                print(f"[+] Unlocked {cid} and terminated audio PID {killed}.")
+            else:
+                print(f"[+] Unlocked {cid}. Failures reset to 0.")
+        sys.exit(0)
+
+    if opts.kill_audio:
+        killed = lock_mgr.kill_all_audio_daemons()
+        if killed:
+            print(f"[+] Terminated {len(killed)} active audio daemon(s) (PIDs: {killed}).")
+        else:
+            print("[*] No active audio daemons found.")
         sys.exit(0)
 
     if opts.list_challenges:
@@ -119,7 +178,6 @@ def main() -> None:
     canonical_id, original_args = resolve_command_identity(command_args)
 
     # 2. Fast-path persistent lock check (< 10ms, ZERO perception/ML imports)
-    lock_mgr = LockManager()
     lock_remaining = lock_mgr.get_lock_remaining(canonical_id)
     if lock_remaining is not None and lock_remaining > 0:
         # Command is locked! Output message and exit immediately without loading models or UI

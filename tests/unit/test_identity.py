@@ -31,3 +31,22 @@ def test_resolve_only_flags():
     cmd_id, args = resolve_command_identity(["-i"])
     assert cmd_id == "builtin:shell_or_flags"
     assert args == ["-i"]
+
+
+def test_resolve_attached_flag():
+    cmd_id, args = resolve_command_identity(["-unobody", "whoami"])
+    assert cmd_id.endswith("/whoami")
+    assert args == ["-unobody", "whoami"]
+
+
+def test_resolve_long_flag_equals():
+    cmd_id, args = resolve_command_identity(["--user=nobody", "whoami"])
+    assert cmd_id.endswith("/whoami")
+    assert args == ["--user=nobody", "whoami"]
+
+
+def test_resolve_option_terminator():
+    cmd_id, args = resolve_command_identity(["--", "-u", "whoami"])
+    # After '--', the target is '-u'
+    assert "-u" in cmd_id
+    assert args == ["--", "-u", "whoami"]
