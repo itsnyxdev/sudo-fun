@@ -64,15 +64,14 @@ def calculate_angle_2d(
     return math.degrees(math.acos(cos_val))
 
 
+from sudo_fun.core.assets import get_model_path, get_models_dir
+
+
 def _get_model_path() -> str:
-    candidates = [
-        Path(__file__).resolve().parent.parent.parent.parent / "assets" / "models" / "pose_landmarker_lite.task",
-        Path.home() / ".local" / "share" / "sudo-fun" / "models" / "pose_landmarker_lite.task",
-    ]
-    for c in candidates:
-        if c.is_file():
-            return str(c)
-    return str(candidates[0])
+    found = get_model_path("pose_landmarker_lite.task")
+    if found and found.is_file():
+        return str(found)
+    return str(get_models_dir() / "pose_landmarker_lite.task")
 
 
 class PoseDetector:

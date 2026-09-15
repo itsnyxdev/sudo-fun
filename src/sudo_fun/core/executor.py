@@ -3,10 +3,29 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from typing import Sequence
 
-SUDO_BINARY = "/usr/bin/sudo"
+
+def find_sudo_binary() -> str:
+    """Discovers the canonical sudo binary path across Linux distributions."""
+    candidates = [
+        "/run/wrappers/bin/sudo",  # NixOS setuid wrapper
+        "/usr/bin/sudo",
+        "/bin/sudo",
+        "/usr/local/bin/sudo",
+    ]
+    for c in candidates:
+        if os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
+    which = shutil.which("sudo")
+    if which and os.access(which, os.X_OK):
+        return which
+    return "/usr/bin/sudo"
+
+
+SUDO_BINARY = find_sudo_binary()
 
 
 def execute_sudo(args: Sequence[str], dry_run: bool = False) -> int:

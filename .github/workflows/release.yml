@@ -39,9 +39,9 @@ jobs:
         run: |
           mkdir -p assets
           echo "Downloading failed.mp3..."
-          curl -fsSL "http://sudo-fun.imnyx.dev/assets/failed.mp3" -o "assets/failed.mp3"
+          curl -fsSL "https://sudo-fun.imnyx.dev/assets/failed.mp3" -o "assets/failed.mp3"
           echo "Downloading failed.wav..."
-          curl -fsSL "http://sudo-fun.imnyx.dev/assets/failed.wav" -o "assets/failed.wav"
+          curl -fsSL "https://sudo-fun.imnyx.dev/assets/failed.wav" -o "assets/failed.wav"
 
       - name: Download ML models
         run: |

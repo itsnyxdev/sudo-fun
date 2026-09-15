@@ -58,9 +58,15 @@ class ChallengeEngine:
 
         if req & RequiredDevice.CAMERA:
             if "pose" in self.challenge.id or "dance" in self.challenge.id:
-                pose_detector = PoseDetector()
+                try:
+                    pose_detector = PoseDetector()
+                except Exception:
+                    pass
             if "blink" in self.challenge.id:
-                face_detector = FaceDetector()
+                try:
+                    face_detector = FaceDetector()
+                except Exception:
+                    pass
 
         if req & RequiredDevice.MICROPHONE:
             if "stroop" in self.challenge.id:
@@ -153,11 +159,14 @@ class ChallengeEngine:
                 detected_score = 0.0
 
                 if audio_svc:
-                    # 1.0s window for classification / ASR
-                    audio_chunk = audio_svc.get_audio_window(1.0)
+                    # Incremental streaming for Vosk ASR (prevents duplicate chunks)
                     if asr:
-                        speech_text = asr.process_audio(audio_chunk)
+                        new_audio = audio_svc.get_new_audio_samples()
+                        speech_text = asr.process_audio(new_audio)
+
+                    # 1.0s sliding window for environmental audio classification
                     if classifier and hasattr(self.challenge, "_animal"):
+                        audio_chunk = audio_svc.get_audio_window(1.0)
                         animal_detected, detected_label, detected_score = classifier.is_animal_sound_detected(
                             audio_chunk, self.challenge._animal
                         )
@@ -177,6 +186,12 @@ class ChallengeEngine:
 
                 # Update challenge
                 result = self.challenge.update(dt, context)
+
+                if result.metadata and result.metadata.get("reset_speech"):
+                    if asr:
+                        asr.reset()
+                    if audio_svc:
+                        audio_svc.reset_speech_buffer()
 
                 # Render UI
                 rem_time = max(0.0, timeout - elapsed)

@@ -35,6 +35,7 @@ class AudioService:
         self._stream: Optional[sd.InputStream] = None
         self._lock = threading.Lock()
         self._buffer: collections.deque = collections.deque(maxlen=self.buffer_size)
+        self._speech_buffer: collections.deque = collections.deque(maxlen=self.buffer_size)
         self._running = False
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info, status) -> None:
@@ -44,6 +45,7 @@ class AudioService:
         mono = indata[:, 0].astype(np.float32)
         with self._lock:
             self._buffer.extend(mono)
+            self._speech_buffer.extend(mono)
 
     def start(self) -> bool:
         """Starts audio input stream."""
@@ -78,6 +80,20 @@ class AudioService:
             return np.concatenate([pad, arr])
         return arr[-num_samples:]
 
+    def get_new_audio_samples(self) -> np.ndarray:
+        """Returns all newly captured audio samples since last call and clears speech buffer."""
+        with self._lock:
+            if not self._speech_buffer:
+                return np.empty(0, dtype=np.float32)
+            arr = np.array(self._speech_buffer, dtype=np.float32)
+            self._speech_buffer.clear()
+            return arr
+
+    def reset_speech_buffer(self) -> None:
+        """Clears the incremental speech buffer."""
+        with self._lock:
+            self._speech_buffer.clear()
+
     def stop(self) -> None:
         """Stops audio stream and frees resources."""
         self._running = False
@@ -90,6 +106,7 @@ class AudioService:
             self._stream = None
         with self._lock:
             self._buffer.clear()
+            self._speech_buffer.clear()
 
     def __enter__(self) -> AudioService:
         self.start()

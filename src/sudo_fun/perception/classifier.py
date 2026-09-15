@@ -9,10 +9,12 @@ import numpy as np
 import onnxruntime as ort
 
 
+from sudo_fun.core.assets import get_model_path, get_models_dir
+
+
 def get_default_yamnet_paths() -> Tuple[Path, Path]:
-    base = Path(__file__).resolve().parent.parent.parent.parent / "assets" / "models"
-    model_path = base / "yamnet.onnx"
-    csv_path = base / "yamnet_class_map.csv"
+    model_path = get_model_path("yamnet.onnx") or (get_models_dir() / "yamnet.onnx")
+    csv_path = get_model_path("yamnet_class_map.csv") or (get_models_dir() / "yamnet_class_map.csv")
     return model_path, csv_path
 
 

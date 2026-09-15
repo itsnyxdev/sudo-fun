@@ -104,6 +104,7 @@ class ColorChallenge(BaseChallenge):
                     return ChallengeResult(
                         state=ChallengeState.RUNNING,
                         message=f"Correct! Next round ({self._current_round}/{self._target_rounds})...",
+                        metadata={"reset_speech": True},
                     )
             # If user got tricked and spoke the written word!
             elif self._word.lower() in spoken_words:

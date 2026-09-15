@@ -362,6 +362,7 @@ fetch_source_code() {
     fi
 
     ensure_audio_assets
+    ensure_ml_models
     success "Source code prepared at $INSTALL_DIR"
 }
 
@@ -371,11 +372,57 @@ ensure_audio_assets() {
     mkdir -p "$assets_dir"
     if [ ! -s "$assets_dir/failed.mp3" ]; then
         info "Downloading failed.mp3 asset..."
-        curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.mp3" -o "$assets_dir/failed.mp3" 2>/dev/null || true
+        curl -sSL "https://sudo-fun.imnyx.dev/assets/failed.mp3" -o "$assets_dir/failed.mp3" 2>/dev/null || true
     fi
     if [ ! -s "$assets_dir/failed.wav" ]; then
         info "Downloading failed.wav asset..."
-        curl -sSL "http://sudo-fun.imnyx.dev/assets/failed.wav" -o "$assets_dir/failed.wav" 2>/dev/null || true
+        curl -sSL "https://sudo-fun.imnyx.dev/assets/failed.wav" -o "$assets_dir/failed.wav" 2>/dev/null || true
+    fi
+}
+
+# Ensure ML models exist in INSTALL_DIR/assets/models
+ensure_ml_models() {
+    local models_dir="$INSTALL_DIR/assets/models"
+    mkdir -p "$models_dir"
+
+    # 1. Face landmarker
+    if [ ! -s "$models_dir/face_landmarker.task" ]; then
+        info "Downloading face_landmarker.task from Google MediaPipe..."
+        curl -fsSL "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task" \
+            -o "$models_dir/face_landmarker.task" 2>/dev/null || true
+    fi
+
+    # 2. Pose landmarker
+    if [ ! -s "$models_dir/pose_landmarker_lite.task" ]; then
+        info "Downloading pose_landmarker_lite.task from Google MediaPipe..."
+        curl -fsSL "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task" \
+            -o "$models_dir/pose_landmarker_lite.task" 2>/dev/null || true
+    fi
+
+    # 3. YAMNet ONNX
+    if [ ! -s "$models_dir/yamnet.onnx" ]; then
+        info "Downloading yamnet.onnx from Hugging Face..."
+        curl -fsSL --retry 3 "https://huggingface.co/andrelgomes/yamnet-onnx/resolve/main/yamnet.onnx" \
+            -o "$models_dir/yamnet.onnx" 2>/dev/null || \
+        curl -fsSL --retry 3 "https://huggingface.co/zeropointnine/yamnet-onnx/resolve/main/yamnet.onnx" \
+            -o "$models_dir/yamnet.onnx" 2>/dev/null || true
+    fi
+
+    # 4. YAMNet class map
+    if [ ! -s "$models_dir/yamnet_class_map.csv" ]; then
+        info "Downloading yamnet_class_map.csv..."
+        curl -fsSL "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv" \
+            -o "$models_dir/yamnet_class_map.csv" 2>/dev/null || true
+    fi
+
+    # 5. Vosk speech model
+    if [ ! -d "$models_dir/vosk-model-small-en-us-0.15" ] || [ ! -s "$models_dir/vosk-model-small-en-us-0.15/am/final.mdl" ]; then
+        info "Downloading vosk-model-small-en-us-0.15..."
+        local tmp_zip="/tmp/vosk-model.zip"
+        if curl -fsSL "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" -o "$tmp_zip" 2>/dev/null; then
+            unzip -q -o "$tmp_zip" -d "$models_dir/" 2>/dev/null || true
+            rm -f "$tmp_zip"
+        fi
     fi
 }
 

@@ -12,26 +12,23 @@ import time
 from pathlib import Path
 
 from sudo_fun.core.lock_manager import LockManager
+from sudo_fun.core.assets import get_asset_path
 
 
 def find_audio_asset() -> Path | None:
-    """Locates the failed audio asset."""
-    # First look in package assets relative to source
-    candidates = [
-        Path(__file__).resolve().parent.parent.parent.parent / "assets" / "failed.mp3",
-        Path(__file__).resolve().parent.parent.parent.parent / "assets" / "failed.wav",
-        Path.home() / ".local" / "share" / "sudo-fun" / "assets" / "failed.mp3",
-        Path.home() / ".local" / "share" / "sudo-fun" / "assets" / "failed.wav",
-    ]
-    for c in candidates:
-        if c.is_file():
-            return c
-    return None
+    """Locates the failed audio asset (mp3 preferred for pw-play, wav fallback)."""
+    return get_asset_path("failed.mp3") or get_asset_path("failed.wav")
 
 
 def play_audio_file(audio_path: Path) -> bool:
     """Plays audio file using native Linux tools with fallback."""
-    # PipeWire native player
+    wav_path = audio_path.with_suffix(".wav")
+    if not wav_path.is_file():
+        found_wav = get_asset_path("failed.wav")
+        if found_wav and found_wav.is_file():
+            wav_path = found_wav
+
+    # PipeWire native player (handles mp3 and wav)
     if shutil.which("pw-play"):
         try:
             res = subprocess.run(
@@ -40,25 +37,27 @@ def play_audio_file(audio_path: Path) -> bool:
                 stderr=subprocess.DEVNULL,
                 check=False,
             )
-            return res.returncode == 0
+            if res.returncode == 0:
+                return True
         except Exception:
             pass
 
-    # PulseAudio native player
+    # PulseAudio native player (requires uncompressed audio / wav)
+    target_pulse = wav_path if wav_path.is_file() else audio_path
     if shutil.which("paplay"):
         try:
             res = subprocess.run(
-                ["paplay", str(audio_path)],
+                ["paplay", str(target_pulse)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,
             )
-            return res.returncode == 0
+            if res.returncode == 0:
+                return True
         except Exception:
             pass
 
     # Fallback to python sounddevice if wav available
-    wav_path = audio_path.with_suffix(".wav")
     if wav_path.is_file():
         try:
             from scipy.io import wavfile
@@ -71,16 +70,17 @@ def play_audio_file(audio_path: Path) -> bool:
         except Exception:
             pass
 
-    # ALSA aplay fallback
+    # ALSA aplay fallback (requires wav)
     if shutil.which("aplay") and wav_path.is_file():
         try:
-            subprocess.run(
+            res = subprocess.run(
                 ["aplay", "-q", str(wav_path)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,
             )
-            return True
+            if res.returncode == 0:
+                return True
         except Exception:
             pass
 

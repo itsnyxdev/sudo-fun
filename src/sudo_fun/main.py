@@ -10,6 +10,16 @@ from sudo_fun import __version__
 from sudo_fun.core.identity import resolve_command_identity
 from sudo_fun.core.lock_manager import LockManager
 
+# Preserve the pristine environment so mutations for OpenCV/Qt never leak to sudo
+_PRISTINE_ENV = dict(os.environ)
+
+
+def restore_pristine_environment() -> None:
+    """Restores os.environ to its initial state before invoking sudo."""
+    os.environ.clear()
+    os.environ.update(_PRISTINE_ENV)
+
+
 # Silence noisy Qt/OpenCV Wayland and font diagnostics on Linux desktops
 os.environ.setdefault("QT_LOGGING_RULES", "qt.*=false;*.warning=false")
 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
@@ -156,6 +166,7 @@ def main() -> None:
     if result.state == ChallengeState.SUCCESS:
         lock_mgr.record_success(canonical_id)
         tui.print_success(result.message)
+        restore_pristine_environment()
         sys.exit(execute_sudo(original_args, dry_run=opts.dry_run))
 
     elif result.state == ChallengeState.CANCELLED:
